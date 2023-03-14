@@ -1,0 +1,59 @@
+version: '3'
+services:
+  line_provider:
+    build:
+      context: ./
+      dockerfile: ./line_provider/Dockerfile
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: $RABBITMQ_USER
+      RABBITMQ_PASSWORD: $RABBITMQ_PASSWORD
+      WAIT_HOSTS: rabbitmq:5672, bet_maker:8080
+
+  bet_maker:
+    build:
+      context: ./
+      dockerfile: ./bet_maker/Dockerfile
+    environment:
+      DB_HOST: bet_maker_db
+      DB_USER: ${BET_MAKER_DB_USER}
+      DB_PASSWORD: ${BET_MAKER_DB_PASSWORD}
+      DB_DATABASE: bet_maker_db
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: $RABBITMQ_USER
+      RABBITMQ_PASSWORD: $RABBITMQ_PASSWORD
+      WAIT_HOSTS: bet_maker_db:5432, rabbitmq:5672
+
+  bet_maker_db:
+    image: postgres:14.2-alpine
+    environment:
+      POSTGRES_USER: ${BET_MAKER_DB_USER}
+      POSTGRES_PASSWORD: ${BET_MAKER_DB_PASSWORD}
+      POSTGRES_DB: bet_maker_db
+    volumes:
+      - bet_maker_db_data:/var/lib/postgres/data
+      - ./bet_maker_db:/docker-entrypoint-initdb.d/
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    environment:
+      RABBITMQ_DEFAULT_USER: $RABBITMQ_USER
+      RABBITMQ_DEFAULT_PASS: $RABBITMQ_PASSWORD
+    volumes:
+      - rabbit_data:/var/lib/rabbitmq/
+
+  nginx:
+    image: nginx:1.21-alpine
+    volumes:
+      - './nginx/nginx.conf:/etc/nginx/nginx.conf:ro'
+    depends_on:
+      - line_provider
+      - bet_maker
+    ports:
+      - "80:80"
+    restart: always
+
+volumes:
+  bet_maker_db_data:
+  rabbit_data:
+
