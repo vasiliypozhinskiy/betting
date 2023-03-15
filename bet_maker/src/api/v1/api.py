@@ -3,6 +3,7 @@ import uuid
 from http import HTTPStatus
 
 from fastapi import APIRouter, Depends, HTTPException
+import sqlalchemy as sa
 
 from api.v1.model.request import CreateBetRequest
 from api.v1.model.response import BetResponse
@@ -17,17 +18,16 @@ EVENT_STATES_ALLOW_TO_BET = {'NEW'}
 
 @router.post('/bet', status_code=HTTPStatus.CREATED)
 async def make_bet(bet: CreateBetRequest, db=Depends(get_db)):
-    event_rows = await db.get_all(event_table)
-    event_for_bet = list(filter(lambda event: event.id == bet.event_id, event_rows))
+    event_for_bet = await db.get_by_id(event_table, bet.event_id)
 
-    if not len(event_for_bet):
+    if not event_for_bet:
         raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail="Event for bet not found")
-    if event_for_bet[0].state not in EVENT_STATES_ALLOW_TO_BET:
+    if event_for_bet.state not in EVENT_STATES_ALLOW_TO_BET:
         raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail="Event status not allow to bet")
-    if event_for_bet[0].deadline < time.time():
+    if event_for_bet.deadline < time.time():
         raise HTTPException(status_code=HTTPStatus.BAD_REQUEST, detail="Betting after deadline")
 
-    new_bet = Bet(id=uuid.uuid4(), event_id=bet.event_id, value=int(bet.value * 100))
+    new_bet = Bet(id=uuid.uuid4(), event_id=bet.event_id, value=bet.value)
     await db.insert(bet_table, new_bet)
 
     return new_bet.id
@@ -35,13 +35,19 @@ async def make_bet(bet: CreateBetRequest, db=Depends(get_db)):
 
 @router.get('/bets')
 async def get_bets(db=Depends(get_db)):
-    bets = await db.get_all(bet_table)
+    bet_with_event_ids = await db.get_columns(
+        table=sa.join(bet_table, event_table, bet_table.c.event_id == event_table.c.id),
+        columns=[bet_table.c.id, bet_table.c.event_id, event_table.c.state],
+    )
 
     result = []
-    for bet in bets:
-        event = await db.get_by_id(event_table, bet.event_id)
+    for bet_with_event_id in bet_with_event_ids:
         result.append(
-            BetResponse(id=bet.id, event_id=bet.event_id, event_state=EVENT_STATES_TO_NUMBERS_MAPPING[event.state])
+            BetResponse(
+                id=bet_with_event_id.id,
+                event_id=bet_with_event_id.event_id,
+                event_state=EVENT_STATES_TO_NUMBERS_MAPPING[bet_with_event_id.state]
+            )
         )
 
     return result

@@ -1,4 +1,5 @@
 from aiopg.sa import create_engine
+import sqlalchemy as sa
 
 from db.db import AbstractDB
 
@@ -29,7 +30,14 @@ class AsyncPostgres(AbstractDB):
 
             return await rows.fetchall()
 
-    async def insert(self, table, entity):
+    async def get_columns(self, table, columns):
+        async with self._engine.acquire() as conn:
+            query = sa.sql.select(columns)
+
+            rows = await conn.execute(query.select_from(table))
+            return await rows.fetchall()
+
+    async def insert(self, table: sa.Table, entity):
         async with self._engine.acquire() as conn:
             await conn.execute(table.insert(dict(entity)))
 

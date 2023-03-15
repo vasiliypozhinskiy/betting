@@ -12,6 +12,10 @@ class AbstractDB(ABC):
         pass
 
     @abstractmethod
+    def get_columns(self, table, columns):
+        pass
+
+    @abstractmethod
     def insert(self, table, entity):
         pass
 
