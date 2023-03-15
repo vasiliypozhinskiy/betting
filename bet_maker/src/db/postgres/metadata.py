@@ -23,7 +23,7 @@ bet_table = sa.Table(
     'bet', metadata,
     sa.Column('id', UUID(as_uuid=True), primary_key=True, default=uuid.uuid4),
     sa.Column('event_id', UUID(as_uuid=True)),
-    sa.Column('value', sa.Integer),  # При расчётах нужно делить на 100
+    sa.Column('value', sa.DECIMAL(precision=20, scale=2)),
     sa.CheckConstraint('value > 0', name='check_value_is_positive'),
 )
 
